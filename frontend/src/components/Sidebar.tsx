@@ -7,6 +7,7 @@ import {
   Code2,
   BrainCircuit,
   FileText,
+  NotebookPen,
   MessageSquare,
   Settings,
   LogOut,
@@ -15,12 +16,14 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "DSA Tracker", href: "/dsa-tracker", icon: Code2 },
   { label: "AI Mock Interview", href: "#", icon: BrainCircuit },
-  { label: "Resume Builder", href: "#", icon: FileText },
+  { label: "Resume", href: "/resume", icon: FileText },
+  { label: "Notes Workspace", href: "/notes", icon: NotebookPen },
   { label: "Discussion Forum", href: "#", icon: MessageSquare },
   { label: "Settings", href: "#", icon: Settings },
 ];
@@ -28,6 +31,7 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { logout } = useAuth();
 
   return (
     <aside
@@ -92,13 +96,14 @@ export default function Sidebar() {
           )}
         </div>
         {/* Logout */}
-        <Link
-          href="/login"
+        <button
+          type="button"
+          onClick={logout}
           className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-muted hover:text-danger hover:bg-danger/10 transition-all"
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {!collapsed && <span>Sign Out</span>}
-        </Link>
+        </button>
       </div>
 
       {/* Collapse Toggle */}

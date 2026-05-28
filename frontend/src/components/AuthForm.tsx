@@ -3,18 +3,61 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Sparkles } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface AuthFormProps {
   mode: "login" | "signup";
 }
 
 export default function AuthForm({ mode }: AuthFormProps) {
+  const { login, signup } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const isLogin = mode === "login";
+  const demoAccounts = [
+    { label: "Demo User", email: "demo.user@placeprep.ai", password: "Demo@123" },
+    { label: "Demo Admin", email: "demo.admin@placeprep.ai", password: "Admin@123" },
+  ] as const;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    try {
+      if (isLogin) {
+        await login({ email, password });
+      } else {
+        await signup({ name, email, password });
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDemoLogin = async (account: (typeof demoAccounts)[number]) => {
+    setError("");
+    setIsLoading(true);
+    setEmail(account.email);
+    setPassword(account.password);
+
+    try {
+      await login({ email: account.email, password: account.password });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Demo login failed";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
@@ -44,12 +87,14 @@ export default function AuthForm({ mode }: AuthFormProps) {
         {/* Form Card */}
         <div className="glass-card p-8">
           <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              window.location.href = "/";
-            }}
+            onSubmit={handleSubmit}
             className="space-y-5"
           >
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm text-center">
+                {error}
+              </div>
+            )}
             {/* Name (signup only) */}
             {!isLogin && (
               <div className="space-y-1.5">
@@ -61,6 +106,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your full name"
+                    required
                     className="w-full pl-11 pr-4 py-3 rounded-xl bg-background border border-border text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all"
                   />
                 </div>
@@ -77,6 +123,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
+                  required
                   className="w-full pl-11 pr-4 py-3 rounded-xl bg-background border border-border text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all"
                 />
               </div>
@@ -99,6 +146,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  required
+                  minLength={6}
                   className="w-full pl-11 pr-12 py-3 rounded-xl bg-background border border-border text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all"
                 />
                 <button
@@ -114,11 +163,28 @@ export default function AuthForm({ mode }: AuthFormProps) {
             {/* Submit */}
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6c5ce7] to-[#a29bfe] text-white font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 hover:shadow-lg hover:shadow-accent/20 active:scale-[0.98] transition-all duration-200"
+              disabled={isLoading}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6c5ce7] to-[#a29bfe] text-white font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 hover:shadow-lg hover:shadow-accent/20 active:scale-[0.98] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {isLogin ? "Sign In" : "Create Account"}
-              <ArrowRight className="w-4 h-4" />
+              {isLoading ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
+              {!isLoading && <ArrowRight className="w-4 h-4" />}
             </button>
+
+            {isLogin && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {demoAccounts.map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => handleDemoLogin(account)}
+                    className="px-4 py-2.5 rounded-xl border border-accent/30 bg-accent/5 text-accent text-sm font-medium hover:bg-accent/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    One-click {account.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Divider */}
             <div className="relative">

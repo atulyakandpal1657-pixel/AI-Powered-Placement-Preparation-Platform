@@ -1,5 +1,13 @@
-import DSATable from "@/components/DSATable";
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Code2 } from "lucide-react";
+import api from "@/lib/axios";
+import type { Difficulty, QuestionItem, QuestionStats, StatusFilter } from "@/types/dsa";
+import QuestionFilters from "@/components/dsa/QuestionFilters";
+import QuestionTable from "@/components/dsa/QuestionTable";
+import ProgressStats from "@/components/dsa/ProgressStats";
+import QuestionSkeleton from "@/components/dsa/QuestionSkeleton";
 
 export const metadata = {
   title: "DSA Tracker — PlacePrep AI",
@@ -7,6 +15,68 @@ export const metadata = {
 };
 
 export default function DSATrackerPage() {
+  const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  const [stats, setStats] = useState<QuestionStats>({
+    total: 0,
+    solved: 0,
+    unsolved: 0,
+    bookmarked: 0,
+    progress: 0,
+    dailyStreak: 0,
+  });
+  const [topics, setTopics] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [topic, setTopic] = useState("All");
+  const [difficulty, setDifficulty] = useState<"All" | Difficulty>("All");
+  const [company, setCompany] = useState("All");
+  const [status, setStatus] = useState<StatusFilter>("All");
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+
+  const query = useMemo(
+    () =>
+      ({
+        search: search || undefined,
+        topic,
+        difficulty,
+        company,
+        status,
+        bookmarked: bookmarkedOnly ? "true" : undefined,
+      }) as const,
+    [search, topic, difficulty, company, status, bookmarkedOnly]
+  );
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [qRes, sRes] = await Promise.all([
+        api.get("/questions", { params: query }),
+        api.get("/questions/stats"),
+      ]);
+      setQuestions(qRes.data.questions || []);
+      setTopics(qRes.data.filters?.topics || []);
+      setCompanies(qRes.data.filters?.companies || []);
+      setStats(sRes.data.stats);
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const toggleSolved = async (id: string) => {
+    await api.patch(`/questions/${id}/solve`);
+    await fetchData();
+  };
+
+  const toggleBookmark = async (id: string) => {
+    await api.patch(`/questions/${id}/bookmark`);
+    await fetchData();
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
       {/* Header */}
@@ -22,8 +92,38 @@ export default function DSATrackerPage() {
         </div>
       </div>
 
-      {/* DSA Table Component */}
-      <DSATable />
+      <ProgressStats stats={stats} />
+      <QuestionFilters
+        search={search}
+        topic={topic}
+        difficulty={difficulty}
+        company={company}
+        status={status}
+        bookmarkedOnly={bookmarkedOnly}
+        topics={topics}
+        companies={companies}
+        onChange={(next) => {
+          if (next.search !== undefined) setSearch(next.search);
+          if (next.topic !== undefined) setTopic(next.topic);
+          if (next.difficulty !== undefined) setDifficulty(next.difficulty);
+          if (next.company !== undefined) setCompany(next.company);
+          if (next.status !== undefined) setStatus(next.status);
+          if (next.bookmarkedOnly !== undefined) setBookmarkedOnly(next.bookmarkedOnly);
+        }}
+      />
+      {loading ? (
+        <div className="grid gap-3">
+          <QuestionSkeleton />
+          <QuestionSkeleton />
+          <QuestionSkeleton />
+        </div>
+      ) : (
+        <QuestionTable
+          questions={questions}
+          onToggleSolved={toggleSolved}
+          onToggleBookmark={toggleBookmark}
+        />
+      )}
     </div>
   );
 }

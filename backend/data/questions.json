@@ -1,0 +1,98 @@
+[
+  {
+    "title": "Two Sum",
+    "slug": "two-sum",
+    "difficulty": "Easy",
+    "topic": "Arrays",
+    "companies": ["Amazon", "Google", "Meta"],
+    "solveUrl": "https://leetcode.com/problems/two-sum/"
+  },
+  {
+    "title": "Best Time to Buy and Sell Stock",
+    "slug": "best-time-to-buy-and-sell-stock",
+    "difficulty": "Easy",
+    "topic": "Arrays",
+    "companies": ["Amazon", "Adobe", "Bloomberg"],
+    "solveUrl": "https://leetcode.com/problems/best-time-to-buy-and-sell-stock/"
+  },
+  {
+    "title": "Longest Substring Without Repeating Characters",
+    "slug": "longest-substring-without-repeating-characters",
+    "difficulty": "Medium",
+    "topic": "Strings",
+    "companies": ["Amazon", "Microsoft", "Adobe"],
+    "solveUrl": "https://leetcode.com/problems/longest-substring-without-repeating-characters/"
+  },
+  {
+    "title": "Valid Parentheses",
+    "slug": "valid-parentheses",
+    "difficulty": "Easy",
+    "topic": "Stack",
+    "companies": ["Google", "Microsoft", "Uber"],
+    "solveUrl": "https://leetcode.com/problems/valid-parentheses/"
+  },
+  {
+    "title": "Merge Intervals",
+    "slug": "merge-intervals",
+    "difficulty": "Medium",
+    "topic": "Intervals",
+    "companies": ["Amazon", "LinkedIn", "Google"],
+    "solveUrl": "https://leetcode.com/problems/merge-intervals/"
+  },
+  {
+    "title": "Course Schedule",
+    "slug": "course-schedule",
+    "difficulty": "Medium",
+    "topic": "Graphs",
+    "companies": ["Meta", "Google", "Microsoft"],
+    "solveUrl": "https://leetcode.com/problems/course-schedule/"
+  },
+  {
+    "title": "Number of Islands",
+    "slug": "number-of-islands",
+    "difficulty": "Medium",
+    "topic": "Graphs",
+    "companies": ["Amazon", "Uber", "Google"],
+    "solveUrl": "https://leetcode.com/problems/number-of-islands/"
+  },
+  {
+    "title": "Clone Graph",
+    "slug": "clone-graph",
+    "difficulty": "Medium",
+    "topic": "Graphs",
+    "companies": ["Meta", "Microsoft", "Google"],
+    "solveUrl": "https://leetcode.com/problems/clone-graph/"
+  },
+  {
+    "title": "Kth Largest Element in an Array",
+    "slug": "kth-largest-element-in-an-array",
+    "difficulty": "Medium",
+    "topic": "Heap",
+    "companies": ["Amazon", "Meta", "Salesforce"],
+    "solveUrl": "https://leetcode.com/problems/kth-largest-element-in-an-array/"
+  },
+  {
+    "title": "Top K Frequent Elements",
+    "slug": "top-k-frequent-elements",
+    "difficulty": "Medium",
+    "topic": "Heap",
+    "companies": ["Meta", "Google", "Amazon"],
+    "solveUrl": "https://leetcode.com/problems/top-k-frequent-elements/"
+  },
+  {
+    "title": "Binary Tree Level Order Traversal",
+    "slug": "binary-tree-level-order-traversal",
+    "difficulty": "Medium",
+    "topic": "Trees",
+    "companies": ["Amazon", "Microsoft", "Bloomberg"],
+    "solveUrl": "https://leetcode.com/problems/binary-tree-level-order-traversal/"
+  },
+  {
+    "title": "Validate Binary Search Tree",
+    "slug": "validate-binary-search-tree",
+    "difficulty": "Medium",
+    "topic": "Trees",
+    "companies": ["Google", "Amazon", "Microsoft"],
+    "solveUrl": "https://leetcode.com/problems/validate-binary-search-tree/"
+  }
+]

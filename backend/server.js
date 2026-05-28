@@ -10,6 +10,9 @@ const errorHandler = require("./middleware/errorHandler");
 // Route imports
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
+const dsaRoutes = require("./routes/dsaRoutes");
+const questionRoutes = require("./routes/questionRoutes");
+const noteRoutes = require("./routes/noteRoutes");
 
 // ──── Initialize Express ───────────────────────────────────
 const app = express();
@@ -46,6 +49,9 @@ app.get("/api/health", (req, res) => {
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/dsa", dsaRoutes);
+app.use("/api/questions", questionRoutes);
+app.use("/api/notes", noteRoutes);
 
 // 404 handler for unknown API routes
 app.use("/api/{*path}", (req, res) => {
