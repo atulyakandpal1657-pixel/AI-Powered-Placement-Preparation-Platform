@@ -1,6 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/axios";
 
@@ -42,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       setIsLoading(true);
       const { data } = await api.get("/auth/me");
@@ -54,13 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Run on mount to check if user is already logged in
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    checkAuth();
   }, []);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   const login = async (credentials: { email: string; password: string }) => {
     try {

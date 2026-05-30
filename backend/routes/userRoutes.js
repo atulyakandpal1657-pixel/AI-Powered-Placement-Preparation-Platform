@@ -1,5 +1,7 @@
 const express = require("express");
 const { protect, authorize } = require("../middleware/auth");
+const UserQuestionState = require("../models/UserQuestionState");
+const { getCurrentStreak } = require("../utils/streak");
 
 const router = express.Router();
 
@@ -45,12 +47,18 @@ router.get("/", authorize("admin"), async (req, res, next) => {
 router.get("/stats", async (req, res, next) => {
   try {
     const user = req.user;
+    const solvedStates = await UserQuestionState.find({
+      user: user._id,
+      solved: true,
+      solvedAt: { $ne: null },
+    });
+    const dailyStreak = getCurrentStreak(solvedStates.map((s) => s.solvedAt));
 
     res.status(200).json({
       success: true,
       stats: {
         problemsSolved: user.problemsSolved,
-        streak: user.streak,
+        streak: dailyStreak,
         lastActive: user.lastActive,
         memberSince: user.createdAt,
       },

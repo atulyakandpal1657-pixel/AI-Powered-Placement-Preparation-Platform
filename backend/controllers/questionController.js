@@ -1,26 +1,22 @@
 const Question = require("../models/Question");
 const UserQuestionState = require("../models/UserQuestionState");
+const { getCurrentStreak } = require("../utils/streak");
+const questionsSeedData = require("../data/questions.json");
 
-const startOfDay = (date) => {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-};
+const seedQuestionsIfEmpty = async () => {
+  const count = await Question.countDocuments();
+  if (count > 0) return count;
 
-const getCurrentStreak = (solvedDates) => {
-  if (!solvedDates.length) return 0;
-  const dayMap = new Set(solvedDates.map((d) => startOfDay(d).getTime()));
-  let streak = 0;
-  let cursor = startOfDay(new Date());
-  while (dayMap.has(cursor.getTime())) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
+  for (const q of questionsSeedData) {
+    await Question.updateOne({ slug: q.slug }, { $set: q }, { upsert: true });
   }
-  return streak;
+  return questionsSeedData.length;
 };
 
 const listQuestions = async (req, res, next) => {
   try {
+    await seedQuestionsIfEmpty();
+
     const { search, topic, difficulty, company, status, bookmarked } = req.query;
     const query = {};
     if (search) query.$text = { $search: search };
@@ -116,6 +112,8 @@ const toggleBookmark = async (req, res, next) => {
 
 const getQuestionStats = async (req, res, next) => {
   try {
+    await seedQuestionsIfEmpty();
+
     const [total, states] = await Promise.all([
       Question.countDocuments(),
       UserQuestionState.find({ user: req.user._id }),

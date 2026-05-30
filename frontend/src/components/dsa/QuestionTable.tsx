@@ -1,12 +1,15 @@
 "use client";
 
-import { Bookmark, BookmarkCheck, CheckCircle2, Circle, ExternalLink } from "lucide-react";
+import { Bookmark, BookmarkCheck, CheckCircle2, Circle, ExternalLink, Database } from "lucide-react";
 import type { QuestionItem } from "@/types/dsa";
+
+export type QuestionTableEmptyVariant = "filters" | "database";
 
 interface Props {
   questions: QuestionItem[];
   onToggleSolved: (id: string) => void;
   onToggleBookmark: (id: string) => void;
+  emptyVariant?: QuestionTableEmptyVariant;
 }
 
 const difficultyStyles = {
@@ -15,11 +18,32 @@ const difficultyStyles = {
   Hard: "text-danger bg-danger/10 border-danger/20",
 };
 
-export default function QuestionTable({ questions, onToggleSolved, onToggleBookmark }: Props) {
+export default function QuestionTable({
+  questions,
+  onToggleSolved,
+  onToggleBookmark,
+  emptyVariant = "filters",
+}: Props) {
   if (!questions.length) {
+    if (emptyVariant === "database") {
+      return (
+        <div className="glass-card p-10 text-center space-y-3">
+          <Database className="w-10 h-10 text-muted mx-auto" />
+          <p className="text-foreground font-medium">No questions in the database yet</p>
+          <p className="text-sm text-muted max-w-md mx-auto">
+            Questions are loaded automatically on first visit. If this persists, run{" "}
+            <code className="px-1.5 py-0.5 rounded bg-surface border border-border text-xs">
+              npm run seed:questions
+            </code>{" "}
+            in the backend folder.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="glass-card p-10 text-center text-muted">
-        No questions found for current filters.
+        No questions match your current filters.
       </div>
     );
   }
@@ -42,7 +66,7 @@ export default function QuestionTable({ questions, onToggleSolved, onToggleBookm
             {questions.map((q) => (
               <tr key={q._id} className="border-b border-border/40 hover:bg-surface-hover/40">
                 <td className="px-4 py-3">
-                  <button onClick={() => onToggleSolved(q._id)}>
+                  <button type="button" onClick={() => onToggleSolved(q._id)} aria-label="Toggle solved">
                     {q.solved ? (
                       <CheckCircle2 className="w-4 h-4 text-success" />
                     ) : (
@@ -71,7 +95,7 @@ export default function QuestionTable({ questions, onToggleSolved, onToggleBookm
                     <a href={q.solveUrl} target="_blank" rel="noreferrer" className="text-accent">
                       <ExternalLink className="w-4 h-4" />
                     </a>
-                    <button onClick={() => onToggleBookmark(q._id)}>
+                    <button type="button" onClick={() => onToggleBookmark(q._id)} aria-label="Toggle bookmark">
                       {q.bookmarked ? (
                         <BookmarkCheck className="w-4 h-4 text-warning" />
                       ) : (

@@ -10,8 +10,8 @@ const {
 const router = express.Router();
 
 router.use(protect);
-router.get("/", listQuestions);
 router.get("/stats", getQuestionStats);
+router.get("/", listQuestions);
 router.patch("/:id/solve", toggleSolved);
 router.patch("/:id/bookmark", toggleBookmark);
 

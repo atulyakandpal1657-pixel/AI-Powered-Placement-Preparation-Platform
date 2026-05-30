@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FileUp, Eye, FileText, Sparkles } from "lucide-react";
 import api from "@/lib/axios";
 import { useAuth } from "@/context/AuthContext";
+import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 
 interface ResumeAnalysis {
   atsScore: number;
@@ -15,11 +16,24 @@ export default function ResumePage() {
   const { user, checkAuth } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
+  const [isAnalyzingStored, setIsAnalyzingStored] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [resumeUrl, setResumeUrl] = useState(user?.resumeUrl || "");
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
+
+  const clearError = useCallback(() => setError(""), []);
+  const clearSuccess = useCallback(() => setSuccess(""), []);
+
+  useAutoDismiss(error, clearError);
+  useAutoDismiss(success, clearSuccess);
+
+  useEffect(() => {
+    if (user?.resumeUrl) {
+      setResumeUrl(user.resumeUrl);
+    }
+  }, [user?.resumeUrl]);
 
   const handleUpload = async () => {
     if (!file) {
@@ -58,7 +72,7 @@ export default function ResumePage() {
     }
   };
 
-  const handleAnalyze = async () => {
+  const handleAnalyzeFile = async () => {
     if (!file) {
       setError("Please select a PDF file for analysis");
       return;
@@ -70,7 +84,7 @@ export default function ResumePage() {
 
     setError("");
     setSuccess("");
-    setIsAnalyzing(true);
+    setIsAnalyzingFile(true);
     try {
       const formData = new FormData();
       formData.append("resume", file);
@@ -87,7 +101,28 @@ export default function ResumePage() {
       const maybeError = err as { response?: { data?: { message?: string } } };
       setError(maybeError.response?.data?.message || "Failed to analyze resume");
     } finally {
-      setIsAnalyzing(false);
+      setIsAnalyzingFile(false);
+    }
+  };
+
+  const handleAnalyzeStored = async () => {
+    if (!resumeUrl) {
+      setError("Upload a resume first, then analyze it here.");
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setIsAnalyzingStored(true);
+    try {
+      const { data } = await api.post("/auth/resume/analyze-stored");
+      setAnalysis(data.analysis);
+      setSuccess("AI analysis complete (from your uploaded resume)");
+    } catch (err: unknown) {
+      const maybeError = err as { response?: { data?: { message?: string } } };
+      setError(maybeError.response?.data?.message || "Failed to analyze uploaded resume");
+    } finally {
+      setIsAnalyzingStored(false);
     }
   };
 
@@ -128,6 +163,7 @@ export default function ResumePage() {
 
         <div className="flex flex-wrap items-center gap-2">
           <button
+            type="button"
             onClick={handleUpload}
             disabled={isUploading || !file}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
@@ -136,13 +172,25 @@ export default function ResumePage() {
             {isUploading ? "Uploading..." : "Upload Resume"}
           </button>
           <button
-            onClick={handleAnalyze}
-            disabled={isAnalyzing || !file}
+            type="button"
+            onClick={handleAnalyzeFile}
+            disabled={isAnalyzingFile || isAnalyzingStored || !file}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-accent/30 text-accent text-sm font-medium hover:bg-accent/10 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
           >
             <Sparkles className="w-4 h-4" />
-            {isAnalyzing ? "Analyzing..." : "Analyze with AI"}
+            {isAnalyzingFile ? "Analyzing..." : "Analyze selected file"}
           </button>
+          {resumeUrl && (
+            <button
+              type="button"
+              onClick={handleAnalyzeStored}
+              disabled={isAnalyzingFile || isAnalyzingStored}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent/10 border border-accent/40 text-accent text-sm font-medium hover:bg-accent/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+            >
+              <Sparkles className="w-4 h-4" />
+              {isAnalyzingStored ? "Analyzing..." : "Analyze uploaded resume"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -188,8 +236,9 @@ export default function ResumePage() {
           </div>
         ) : (
           <p className="text-sm text-muted">
-            Upload/select a PDF and click &quot;Analyze with AI&quot; to get ATS score, missing skills,
-            and suggestions.
+            {resumeUrl
+              ? 'Click "Analyze uploaded resume" to score your saved PDF, or pick a new file to analyze before uploading.'
+              : 'Upload a PDF, then use "Analyze uploaded resume" — or analyze a file from disk before uploading.'}
           </p>
         )}
       </div>

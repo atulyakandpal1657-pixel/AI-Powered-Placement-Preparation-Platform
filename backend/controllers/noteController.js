@@ -1,4 +1,23 @@
+const { validationResult } = require("express-validator");
 const CodingNote = require("../models/CodingNote");
+
+const pickAllowedFields = (body) => {
+  const allowed = [
+    "title",
+    "topic",
+    "difficulty",
+    "tags",
+    "personalExplanation",
+    "codeSolution",
+    "revisionNotes",
+    "checklist",
+  ];
+  const payload = {};
+  for (const key of allowed) {
+    if (body[key] !== undefined) payload[key] = body[key];
+  }
+  return payload;
+};
 
 const listNotes = async (req, res, next) => {
   try {
@@ -17,7 +36,16 @@ const listNotes = async (req, res, next) => {
 
 const createNote = async (req, res, next) => {
   try {
-    const payload = { ...req.body, user: req.user._id };
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: errors.array(),
+      });
+    }
+
+    const payload = { ...pickAllowedFields(req.body), user: req.user._id };
     const note = await CodingNote.create(payload);
     res.status(201).json({ success: true, note });
   } catch (error) {
@@ -37,9 +65,18 @@ const getNoteById = async (req, res, next) => {
 
 const updateNote = async (req, res, next) => {
   try {
+    const updates = {};
+    const allowed = [
+      "title", "topic", "difficulty", "tags", "pinned",
+      "personalExplanation", "codeSolution", "revisionNotes", "checklist",
+    ];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+
     const note = await CodingNote.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
-      req.body,
+      updates,
       { new: true, runValidators: true }
     );
     if (!note) return res.status(404).json({ success: false, message: "Note not found" });

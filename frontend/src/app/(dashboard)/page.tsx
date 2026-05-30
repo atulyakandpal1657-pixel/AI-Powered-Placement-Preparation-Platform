@@ -1,3 +1,8 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import api from "@/lib/axios";
+import { useAuth } from "@/context/AuthContext";
 import StatCard from "@/components/StatCard";
 import {
   Code2,
@@ -10,13 +15,48 @@ import {
   Zap,
 } from "lucide-react";
 
+interface QuestionStats {
+  total: number;
+  solved: number;
+  unsolved: number;
+  bookmarked: number;
+  progress: number;
+  dailyStreak: number;
+}
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good Morning";
+  if (hour < 17) return "Good Afternoon";
+  return "Good Evening";
+}
+
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const [stats, setStats] = useState<QuestionStats | null>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const { data } = await api.get("/questions/stats");
+        if (data.success) {
+          setStats(data.stats);
+        }
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const firstName = user?.name?.split(" ")[0] || "there";
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
       {/* Header */}
       <div className="space-y-1">
         <h1 className="text-3xl font-bold">
-          Good Evening, <span className="gradient-text">Atul</span> 👋
+          {getGreeting()}, <span className="gradient-text">{firstName}</span> 👋
         </h1>
         <p className="text-muted text-sm">
           Here&apos;s an overview of your placement preparation progress.
@@ -27,33 +67,33 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 stagger-children">
         <StatCard
           label="Problems Solved"
-          value={127}
+          value={stats?.solved ?? "—"}
           icon={<Code2 className="w-6 h-6" />}
-          trend="12%"
+          trend={stats ? `${stats.progress}%` : "—"}
           trendUp={true}
           accentColor="#6c5ce7"
         />
         <StatCard
           label="Current Streak"
-          value="15 days"
+          value={stats ? `${stats.dailyStreak} days` : "—"}
           icon={<Flame className="w-6 h-6" />}
-          trend="5 days"
+          trend={stats?.dailyStreak ? `${stats.dailyStreak} days` : "—"}
           trendUp={true}
           accentColor="#f5a623"
         />
         <StatCard
-          label="Mock Interviews"
-          value={8}
+          label="Bookmarked"
+          value={stats?.bookmarked ?? "—"}
           icon={<Trophy className="w-6 h-6" />}
-          trend="3"
+          trend=""
           trendUp={true}
           accentColor="#00d2a0"
         />
         <StatCard
           label="Accuracy Rate"
-          value="73%"
+          value={stats ? `${stats.progress}%` : "—"}
           icon={<Target className="w-6 h-6" />}
-          trend="4%"
+          trend=""
           trendUp={true}
           accentColor="#74b9ff"
         />

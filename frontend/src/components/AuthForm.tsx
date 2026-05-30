@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useAutoDismiss } from "@/hooks/useAutoDismiss";
 import Link from "next/link";
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import api from "@/lib/axios";
 
 interface AuthFormProps {
   mode: "login" | "signup";
@@ -18,11 +20,28 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const clearError = useCallback(() => setError(""), []);
+  useAutoDismiss(error, clearError);
+
   const isLogin = mode === "login";
-  const demoAccounts = [
-    { label: "Demo User", email: "demo.user@placeprep.ai", password: "Demo@123" },
-    { label: "Demo Admin", email: "demo.admin@placeprep.ai", password: "Admin@123" },
-  ] as const;
+  const [demoAccounts, setDemoAccounts] = useState<
+    Array<{ label: string; email: string; password: string }>
+  >([]);
+
+  useEffect(() => {
+    if (!isLogin) return;
+    const loadDemoAccounts = async () => {
+      try {
+        const { data } = await api.get("/auth/demo-accounts");
+        if (data.success && Array.isArray(data.accounts)) {
+          setDemoAccounts(data.accounts);
+        }
+      } catch {
+        setDemoAccounts([]);
+      }
+    };
+    loadDemoAccounts();
+  }, [isLogin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +62,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
     }
   };
 
-  const handleDemoLogin = async (account: (typeof demoAccounts)[number]) => {
+  const handleDemoLogin = async (account: { label: string; email: string; password: string }) => {
     setError("");
     setIsLoading(true);
     setEmail(account.email);
@@ -170,7 +189,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
               {!isLoading && <ArrowRight className="w-4 h-4" />}
             </button>
 
-            {isLogin && (
+            {isLogin && demoAccounts.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {demoAccounts.map((account) => (
                   <button

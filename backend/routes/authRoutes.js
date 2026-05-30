@@ -8,6 +8,8 @@ const {
   logout,
   uploadResume,
   analyzeResume,
+  analyzeStoredResume,
+  getDemoAccounts,
 } = require("../controllers/authController");
 const { protect } = require("../middleware/auth");
 const upload = require("../middleware/upload");
@@ -41,6 +43,8 @@ router.post(
   signup
 );
 
+router.get("/demo-accounts", getDemoAccounts);
+
 router.post(
   "/login",
   [
@@ -62,6 +66,7 @@ router.get("/me", protect, getMe);
 router.put("/me", protect, updateMe);
 router.post("/resume", protect, upload.single("resume"), uploadResume);
 router.post("/resume/analyze", protect, upload.single("resume"), analyzeResume);
+router.post("/resume/analyze-stored", protect, analyzeStoredResume);
 router.post("/logout", protect, logout);
 
 module.exports = router;

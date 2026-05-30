@@ -238,40 +238,27 @@ const extractJsonBlock = (text) => {
   return trimmed;
 };
 
-/**
- * @desc    Analyze resume PDF with Gemini
- * @route   POST /api/auth/resume/analyze
- * @access  Private
- */
-const analyzeResume = async (req, res, next) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "Resume PDF is required",
-      });
-    }
+const normalizeAnalysis = (analysis) => ({
+  atsScore: Math.max(0, Math.min(100, Number(analysis.atsScore) || 0)),
+  missingSkills: Array.isArray(analysis.missingSkills)
+    ? analysis.missingSkills.map((s) => String(s)).slice(0, 12)
+    : [],
+  improvementSuggestions: Array.isArray(analysis.improvementSuggestions)
+    ? analysis.improvementSuggestions.map((s) => String(s)).slice(0, 10)
+    : [],
+});
 
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({
-        success: false,
-        message: "GEMINI_API_KEY is not configured on server",
-      });
-    }
+const analyzeResumeText = async (resumeText) => {
+  if (!process.env.GEMINI_API_KEY) {
+    const err = new Error("GEMINI_NOT_CONFIGURED");
+    err.statusCode = 500;
+    throw err;
+  }
 
-    const pdfData = await pdfParse(req.file.buffer);
-    const resumeText = pdfData.text?.trim();
-    if (!resumeText) {
-      return res.status(400).json({
-        success: false,
-        message: "Could not extract text from PDF",
-      });
-    }
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    const prompt = `
+  const prompt = `
 You are an expert ATS and resume reviewer.
 Analyze the resume text and return STRICT JSON only using this exact schema:
 {
@@ -290,38 +277,166 @@ Resume text:
 ${resumeText}
 `;
 
-    const result = await model.generateContent(prompt);
-    const raw = result.response.text();
-    const jsonCandidate = extractJsonBlock(raw);
+  const result = await model.generateContent(prompt);
+  const raw = result.response.text();
+  const jsonCandidate = extractJsonBlock(raw);
 
-    let analysis;
-    try {
-      analysis = JSON.parse(jsonCandidate);
-    } catch (parseError) {
+  try {
+    return normalizeAnalysis(JSON.parse(jsonCandidate));
+  } catch {
+    const err = new Error("INVALID_AI_RESPONSE");
+    err.statusCode = 502;
+    throw err;
+  }
+};
+
+const analyzePdfBuffer = async (buffer) => {
+  const pdfData = await pdfParse(buffer);
+  const resumeText = pdfData.text?.trim();
+  if (!resumeText) {
+    const err = new Error("NO_PDF_TEXT");
+    err.statusCode = 400;
+    throw err;
+  }
+  const analysis = await analyzeResumeText(resumeText);
+  return { analysis, extractedTextLength: resumeText.length };
+};
+
+/**
+ * @desc    Analyze resume PDF with Gemini
+ * @route   POST /api/auth/resume/analyze
+ * @access  Private
+ */
+const analyzeResume = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Resume PDF is required",
+      });
+    }
+
+    const { analysis, extractedTextLength } = await analyzePdfBuffer(req.file.buffer);
+
+    return res.status(200).json({
+      success: true,
+      analysis,
+      extractedTextLength,
+    });
+  } catch (error) {
+    if (error.statusCode === 500 && error.message === "GEMINI_NOT_CONFIGURED") {
+      return res.status(500).json({
+        success: false,
+        message: "GEMINI_API_KEY is not configured on server",
+      });
+    }
+    if (error.statusCode === 400 && error.message === "NO_PDF_TEXT") {
+      return res.status(400).json({
+        success: false,
+        message: "Could not extract text from PDF",
+      });
+    }
+    if (error.statusCode === 502) {
       return res.status(502).json({
         success: false,
         message: "AI returned an invalid response format",
       });
     }
-
-    const normalized = {
-      atsScore: Math.max(0, Math.min(100, Number(analysis.atsScore) || 0)),
-      missingSkills: Array.isArray(analysis.missingSkills)
-        ? analysis.missingSkills.map((s) => String(s)).slice(0, 12)
-        : [],
-      improvementSuggestions: Array.isArray(analysis.improvementSuggestions)
-        ? analysis.improvementSuggestions.map((s) => String(s)).slice(0, 10)
-        : [],
-    };
-
-    return res.status(200).json({
-      success: true,
-      analysis: normalized,
-      extractedTextLength: resumeText.length,
-    });
-  } catch (error) {
     next(error);
   }
 };
 
-module.exports = { signup, login, getMe, updateMe, logout, uploadResume, analyzeResume };
+/**
+ * @desc    Analyze the user's already-uploaded resume from Cloudinary
+ * @route   POST /api/auth/resume/analyze-stored
+ * @access  Private
+ */
+const analyzeStoredResume = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user?.resumeUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "No resume uploaded yet. Upload a PDF first.",
+      });
+    }
+
+    const response = await fetch(user.resumeUrl);
+    if (!response.ok) {
+      return res.status(400).json({
+        success: false,
+        message: "Could not fetch your stored resume. Try uploading again.",
+      });
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const { analysis, extractedTextLength } = await analyzePdfBuffer(buffer);
+
+    return res.status(200).json({
+      success: true,
+      analysis,
+      extractedTextLength,
+    });
+  } catch (error) {
+    if (error.statusCode === 500 && error.message === "GEMINI_NOT_CONFIGURED") {
+      return res.status(500).json({
+        success: false,
+        message: "GEMINI_API_KEY is not configured on server",
+      });
+    }
+    if (error.statusCode === 400 && error.message === "NO_PDF_TEXT") {
+      return res.status(400).json({
+        success: false,
+        message: "Could not extract text from PDF",
+      });
+    }
+    if (error.statusCode === 502) {
+      return res.status(502).json({
+        success: false,
+        message: "AI returned an invalid response format",
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc    Demo account credentials for one-click login (env-configured)
+ * @route   GET /api/auth/demo-accounts
+ * @access  Public (disabled unless ENABLE_DEMO_ACCOUNTS=true)
+ */
+const getDemoAccounts = async (req, res) => {
+  if (process.env.ENABLE_DEMO_ACCOUNTS !== "true") {
+    return res.status(404).json({ success: false, message: "Not found" });
+  }
+
+  const accounts = [];
+  if (process.env.DEMO_USER_EMAIL && process.env.DEMO_USER_PASSWORD) {
+    accounts.push({
+      label: "Demo User",
+      email: process.env.DEMO_USER_EMAIL,
+      password: process.env.DEMO_USER_PASSWORD,
+    });
+  }
+  if (process.env.DEMO_ADMIN_EMAIL && process.env.DEMO_ADMIN_PASSWORD) {
+    accounts.push({
+      label: "Demo Admin",
+      email: process.env.DEMO_ADMIN_EMAIL,
+      password: process.env.DEMO_ADMIN_PASSWORD,
+    });
+  }
+
+  return res.status(200).json({ success: true, accounts });
+};
+
+module.exports = {
+  signup,
+  login,
+  getMe,
+  updateMe,
+  logout,
+  uploadResume,
+  analyzeResume,
+  analyzeStoredResume,
+  getDemoAccounts,
+};
