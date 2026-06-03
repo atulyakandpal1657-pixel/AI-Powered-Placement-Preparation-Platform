@@ -1,4 +1,4 @@
-import AuthForm from "@/components/AuthForm";
+import AuthForm from "@/components/forms/AuthForm";
 
 export const metadata = {
   title: "Create Account — PlacePrep AI",

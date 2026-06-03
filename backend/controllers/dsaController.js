@@ -1,5 +1,6 @@
 const DSAProblem = require("../models/DSAProblem");
 const User = require("../models/User");
+const { getPaginationOptions, getPaginationResponse } = require("../utils/pagination");
 
 const buildFilters = (query) => {
   const filters = {};
@@ -20,6 +21,7 @@ const buildFilters = (query) => {
 const listProblems = async (req, res, next) => {
   try {
     const search = req.query.search?.trim();
+    const { page, limit, skip } = getPaginationOptions(req.query);
     const filters = buildFilters(req.query);
 
     const query = {
@@ -31,12 +33,16 @@ const listProblems = async (req, res, next) => {
       query.title = { $regex: search, $options: "i" };
     }
 
-    const problems = await DSAProblem.find(query).sort({ createdAt: -1 });
+    const total = await DSAProblem.countDocuments(query);
+    const problems = await DSAProblem.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
     res.status(200).json({
       success: true,
       count: problems.length,
-      problems,
+      ...getPaginationResponse(total, page, limit, "problems", problems),
     });
   } catch (error) {
     next(error);
@@ -90,7 +96,7 @@ const updateProblem = async (req, res, next) => {
     }
 
     const problem = await DSAProblem.findByIdAndUpdate(existing._id, updates, {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     });
 
@@ -138,26 +144,97 @@ const deleteProblem = async (req, res, next) => {
 
 const getStats = async (req, res, next) => {
   try {
-    const problems = await DSAProblem.find({ user: req.user._id });
-    const total = problems.length;
-    const solved = problems.filter((p) => p.solved).length;
-    const unsolved = total - solved;
+    const [summaryResult, topicStats] = await Promise.all([
+      DSAProblem.aggregate([
+        { $match: { user: req.user._id } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            solved: { $sum: { $cond: ["$solved", 1, 0] } },
+            easyTotal: {
+              $sum: {
+                $cond: [{ $eq: ["$difficulty", "Easy"] }, 1, 0],
+              },
+            },
+            easySolved: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$difficulty", "Easy"] }, "$solved"] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            mediumTotal: {
+              $sum: {
+                $cond: [{ $eq: ["$difficulty", "Medium"] }, 1, 0],
+              },
+            },
+            mediumSolved: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$difficulty", "Medium"] }, "$solved"] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            hardTotal: {
+              $sum: {
+                $cond: [{ $eq: ["$difficulty", "Hard"] }, 1, 0],
+              },
+            },
+            hardSolved: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$difficulty", "Hard"] }, "$solved"] },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ]),
+      DSAProblem.aggregate([
+        { $match: { user: req.user._id } },
+        {
+          $group: {
+            _id: "$topic",
+            total: { $sum: 1 },
+            solved: { $sum: { $cond: ["$solved", 1, 0] } },
+          },
+        },
+        { $project: { _id: 0, topic: "$_id", total: 1, solved: 1 } },
+      ]),
+    ]);
+
+    const summary = summaryResult[0] || {
+      total: 0,
+      solved: 0,
+      easyTotal: 0,
+      easySolved: 0,
+      mediumTotal: 0,
+      mediumSolved: 0,
+      hardTotal: 0,
+      hardSolved: 0,
+    };
 
     const byDifficulty = {
-      Easy: { total: 0, solved: 0 },
-      Medium: { total: 0, solved: 0 },
-      Hard: { total: 0, solved: 0 },
+      Easy: { total: summary.easyTotal, solved: summary.easySolved },
+      Medium: { total: summary.mediumTotal, solved: summary.mediumSolved },
+      Hard: { total: summary.hardTotal, solved: summary.hardSolved },
     };
-    const byTopic = {};
 
-    for (const p of problems) {
-      byDifficulty[p.difficulty].total += 1;
-      if (p.solved) byDifficulty[p.difficulty].solved += 1;
+    const byTopic = topicStats.reduce((acc, topic) => {
+      acc[topic.topic] = { total: topic.total, solved: topic.solved };
+      return acc;
+    }, {});
 
-      if (!byTopic[p.topic]) byTopic[p.topic] = { total: 0, solved: 0 };
-      byTopic[p.topic].total += 1;
-      if (p.solved) byTopic[p.topic].solved += 1;
-    }
+    const total = summary.total;
+    const solved = summary.solved;
+    const unsolved = total - solved;
 
     res.status(200).json({
       success: true,

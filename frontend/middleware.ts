@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
+  const isAuthenticated = token && token !== "none";
+  
   const path = request.nextUrl.pathname;
   const isProtectedRoute =
     path === "/" ||
@@ -12,8 +14,8 @@ export function middleware(request: NextRequest) {
 
   // Protect the dashboard routes
   if (isProtectedRoute) {
-    if (!token) {
-      // Redirect to login if there is no token
+    if (!isAuthenticated) {
+      // Redirect to login if there is no valid token
       return NextResponse.redirect(new URL("/login", request.url));
     }
   }
@@ -23,7 +25,7 @@ export function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup")
   ) {
-    if (token) {
+    if (isAuthenticated) {
       return NextResponse.redirect(new URL("/", request.url));
     }
   }

@@ -2,23 +2,32 @@
 
 import { Pin } from "lucide-react";
 import type { CodingNote } from "@/types/notes";
+import PaginationControls from "@/components/common/PaginationControls";
 
 interface Props {
   notes: CodingNote[];
   selectedId: string | null;
   search: string;
+  page: number;
+  totalPages: number;
+  isLoading?: boolean;
   onSearch: (value: string) => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onPageChange: (page: number) => void;
 }
 
 export default function NotesSidebar({
   notes,
   selectedId,
   search,
+  page,
+  totalPages,
+  isLoading,
   onSearch,
   onSelect,
   onCreate,
+  onPageChange,
 }: Props) {
   return (
     <div className="w-full md:w-80 border-r border-border bg-surface/70 flex flex-col">
@@ -52,6 +61,14 @@ export default function NotesSidebar({
           </button>
         ))}
         {notes.length === 0 && <p className="p-4 text-sm text-muted">No notes found.</p>}
+      </div>
+      <div className="p-3">
+        <PaginationControls
+          page={page}
+          totalPages={totalPages}
+          isLoading={isLoading}
+          onPageChange={onPageChange}
+        />
       </div>
     </div>
   );

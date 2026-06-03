@@ -22,13 +22,27 @@ const pickAllowedFields = (body) => {
 const listNotes = async (req, res, next) => {
   try {
     const { search, topic, pinned } = req.query;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
     const query = { user: req.user._id };
     if (search) query.$text = { $search: search };
     if (topic && topic !== "All") query.topic = topic;
     if (pinned === "true") query.pinned = true;
 
-    const notes = await CodingNote.find(query).sort({ pinned: -1, updatedAt: -1 });
-    res.status(200).json({ success: true, notes });
+    const total = await CodingNote.countDocuments(query);
+    const notes = await CodingNote.find(query)
+      .sort({ pinned: -1, updatedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    res.status(200).json({
+      success: true,
+      notes,
+      page,
+      limit,
+      total,
+      totalPages: total ? Math.ceil(total / limit) : 0,
+    });
   } catch (error) {
     next(error);
   }
@@ -77,7 +91,7 @@ const updateNote = async (req, res, next) => {
     const note = await CodingNote.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
       updates,
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     );
     if (!note) return res.status(404).json({ success: false, message: "Note not found" });
     res.status(200).json({ success: true, note });

@@ -1,6 +1,7 @@
 const Question = require("../models/Question");
 const UserQuestionState = require("../models/UserQuestionState");
 const { getCurrentStreak } = require("../utils/streak");
+const { getPaginationOptions, getPaginationResponse } = require("../utils/pagination");
 const questionsSeedData = require("../data/questions.json");
 
 const seedQuestionsIfEmpty = async () => {
@@ -18,43 +19,87 @@ const listQuestions = async (req, res, next) => {
     await seedQuestionsIfEmpty();
 
     const { search, topic, difficulty, company, status, bookmarked } = req.query;
-    const query = {};
-    if (search) query.$text = { $search: search };
-    if (topic && topic !== "All") query.topic = topic;
-    if (difficulty && difficulty !== "All") query.difficulty = difficulty;
-    if (company && company !== "All") query.companies = company;
+    const { page, limit, skip } = getPaginationOptions(req.query);
 
-    const questions = await Question.find(query).sort({ createdAt: -1 });
-    const states = await UserQuestionState.find({
-      user: req.user._id,
-      question: { $in: questions.map((q) => q._id) },
+    const baseQuery = {};
+    if (search) baseQuery.$text = { $search: search };
+    if (topic && topic !== "All") baseQuery.topic = topic;
+    if (difficulty && difficulty !== "All") baseQuery.difficulty = difficulty;
+    if (company && company !== "All") baseQuery.companies = company;
+
+    const topics = Array.from(new Set((await Question.find(baseQuery)).map((q) => q.topic))).sort();
+    const companies = Array.from(new Set((await Question.find(baseQuery)).flatMap((q) => q.companies))).sort();
+
+    const aggregatePipeline = [
+      { $match: baseQuery },
+      { $sort: { createdAt: -1 } },
+      {
+        $lookup: {
+          from: "userquestionstates",
+          let: { questionId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$question", "$$questionId"] },
+                    { $eq: ["$user", req.user._id] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "state",
+        },
+      },
+      { $unwind: { path: "$state", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          solved: { $ifNull: ["$state.solved", false] },
+          bookmarked: { $ifNull: ["$state.bookmarked", false] },
+        },
+      },
+    ];
+
+    if (status === "Solved") {
+      aggregatePipeline.push({ $match: { solved: true } });
+    }
+    if (status === "Unsolved") {
+      aggregatePipeline.push({ $match: { solved: false } });
+    }
+    if (bookmarked === "true") {
+      aggregatePipeline.push({ $match: { bookmarked: true } });
+    }
+
+    aggregatePipeline.push({
+      $facet: {
+        metadata: [{ $count: "total" }],
+        data: [
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 1,
+              title: 1,
+              difficulty: 1,
+              topic: 1,
+              companies: 1,
+              solveUrl: 1,
+              solved: 1,
+              bookmarked: 1,
+            },
+          },
+        ],
+      },
     });
-    const stateMap = new Map(states.map((s) => [String(s.question), s]));
 
-    let items = questions.map((q) => {
-      const state = stateMap.get(String(q._id));
-      return {
-        _id: q._id,
-        title: q.title,
-        difficulty: q.difficulty,
-        topic: q.topic,
-        companies: q.companies,
-        solveUrl: q.solveUrl,
-        solved: state?.solved || false,
-        bookmarked: state?.bookmarked || false,
-      };
-    });
-
-    if (status === "Solved") items = items.filter((i) => i.solved);
-    if (status === "Unsolved") items = items.filter((i) => !i.solved);
-    if (bookmarked === "true") items = items.filter((i) => i.bookmarked);
-
-    const topics = Array.from(new Set(questions.map((q) => q.topic))).sort();
-    const companies = Array.from(new Set(questions.flatMap((q) => q.companies))).sort();
+    const aggregateResult = await Question.aggregate(aggregatePipeline);
+    const metadata = aggregateResult[0]?.metadata?.[0] || { total: 0 };
+    const questions = aggregateResult[0]?.data || [];
 
     res.status(200).json({
       success: true,
-      questions: items,
+      ...getPaginationResponse(metadata.total, page, limit, "questions", questions),
       filters: {
         topics,
         companies,

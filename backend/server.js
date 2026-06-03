@@ -3,9 +3,12 @@ dotenv.config();
 
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/errorHandler");
+const swaggerUi = require("swagger-ui-express");
+const swaggerDocument = require("./swagger");
 
 // Route imports
 const authRoutes = require("./routes/authRoutes");
@@ -18,6 +21,9 @@ const noteRoutes = require("./routes/noteRoutes");
 const app = express();
 
 // ──── Middleware ────────────────────────────────────────────
+
+// Security headers
+app.use(helmet());
 
 // CORS — allow frontend origin with credentials
 app.use(
@@ -45,6 +51,10 @@ app.get("/api/health", (req, res) => {
     environment: process.env.NODE_ENV,
   });
 });
+
+// API docs
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.get("/api/docs.json", (req, res) => res.json(swaggerDocument));
 
 // API routes
 app.use("/api/auth", authRoutes);
@@ -87,7 +97,11 @@ const startServer = async () => {
   });
 };
 
-startServer().catch((err) => {
-  console.error("❌ Failed to start server:", err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  startServer().catch((err) => {
+    console.error("❌ Failed to start server:", err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = app;

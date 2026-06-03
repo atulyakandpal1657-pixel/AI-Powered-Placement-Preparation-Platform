@@ -2,7 +2,7 @@
 
 import { Menu } from "lucide-react";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
-import Sidebar from "@/components/Sidebar";
+import Sidebar from "@/components/layout/Sidebar";
 
 function DashboardMain({ children }: { children: React.ReactNode }) {
   const { collapsed, setMobileOpen } = useSidebar();

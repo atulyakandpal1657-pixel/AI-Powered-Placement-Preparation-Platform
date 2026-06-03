@@ -1,8 +1,7 @@
 const User = require("../models/User");
 const { validationResult } = require("express-validator");
 const cloudinary = require("../config/cloudinary");
-const pdfParse = require("pdf-parse");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { analyzePdfBuffer } = require("../services/aiService");
 
 // Cookie options for JWT token
 const cookieOptions = (req) => ({
@@ -145,7 +144,7 @@ const updateMe = async (req, res, next) => {
     }
 
     const user = await User.findByIdAndUpdate(req.user.id, updates, {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     });
 
@@ -212,7 +211,7 @@ const uploadResume = async (req, res, next) => {
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { resumeUrl: uploaded.secure_url },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     );
 
     return res.status(200).json({
@@ -226,81 +225,6 @@ const uploadResume = async (req, res, next) => {
   }
 };
 
-const extractJsonBlock = (text) => {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```json\s*([\s\S]*?)\s*```/i);
-  if (fenced?.[1]) return fenced[1].trim();
-  const start = trimmed.indexOf("{");
-  const end = trimmed.lastIndexOf("}");
-  if (start !== -1 && end !== -1 && end > start) {
-    return trimmed.slice(start, end + 1);
-  }
-  return trimmed;
-};
-
-const normalizeAnalysis = (analysis) => ({
-  atsScore: Math.max(0, Math.min(100, Number(analysis.atsScore) || 0)),
-  missingSkills: Array.isArray(analysis.missingSkills)
-    ? analysis.missingSkills.map((s) => String(s)).slice(0, 12)
-    : [],
-  improvementSuggestions: Array.isArray(analysis.improvementSuggestions)
-    ? analysis.improvementSuggestions.map((s) => String(s)).slice(0, 10)
-    : [],
-});
-
-const analyzeResumeText = async (resumeText) => {
-  if (!process.env.GEMINI_API_KEY) {
-    const err = new Error("GEMINI_NOT_CONFIGURED");
-    err.statusCode = 500;
-    throw err;
-  }
-
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-  const prompt = `
-You are an expert ATS and resume reviewer.
-Analyze the resume text and return STRICT JSON only using this exact schema:
-{
-  "atsScore": number, // integer 0-100
-  "missingSkills": string[], // concise technical/professional skills likely missing
-  "improvementSuggestions": string[] // actionable bullet-style suggestions
-}
-
-Rules:
-- No markdown/code fences, JSON only.
-- Keep missingSkills to maximum 12 items.
-- Keep improvementSuggestions to maximum 10 items.
-- Base your analysis only on the resume text provided.
-
-Resume text:
-${resumeText}
-`;
-
-  const result = await model.generateContent(prompt);
-  const raw = result.response.text();
-  const jsonCandidate = extractJsonBlock(raw);
-
-  try {
-    return normalizeAnalysis(JSON.parse(jsonCandidate));
-  } catch {
-    const err = new Error("INVALID_AI_RESPONSE");
-    err.statusCode = 502;
-    throw err;
-  }
-};
-
-const analyzePdfBuffer = async (buffer) => {
-  const pdfData = await pdfParse(buffer);
-  const resumeText = pdfData.text?.trim();
-  if (!resumeText) {
-    const err = new Error("NO_PDF_TEXT");
-    err.statusCode = 400;
-    throw err;
-  }
-  const analysis = await analyzeResumeText(resumeText);
-  return { analysis, extractedTextLength: resumeText.length };
-};
 
 /**
  * @desc    Analyze resume PDF with Gemini

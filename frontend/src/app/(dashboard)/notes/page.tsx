@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import api from "@/lib/axios";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useApi } from "@/hooks/useApi";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { usePagination } from "@/hooks/usePagination";
 import type { CodingNote } from "@/types/notes";
 import NotesSidebar from "@/components/notes/NotesSidebar";
 import NoteEditor from "@/components/notes/NoteEditor";
@@ -20,40 +22,44 @@ const defaultNote: Omit<CodingNote, "_id" | "updatedAt"> = {
 };
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
-  const maybeError = error as { response?: { data?: { message?: string } } };
-  return maybeError.response?.data?.message || fallback;
+  const maybeError = error as { response?: { data?: { message?: string } }; message?: string };
+  return maybeError.response?.data?.message || maybeError.message || fallback;
 };
 
 export default function NotesWorkspacePage() {
   const [notes, setNotes] = useState<CodingNote[]>([]);
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 400);
+  const { page, limit, setPage, resetPage } = usePagination({ initialPage: 1, initialLimit: 10 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const isDirty = useRef(false);
+  const [totalPages, setTotalPages] = useState(1);
+  const { request, loading: loadingNotes } = useApi<{ notes: CodingNote[]; page: number; totalPages: number }>();
 
   const selected = useMemo(
     () => notes.find((n) => n._id === selectedId) || null,
     [notes, selectedId]
   );
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [search]);
-
   const loadNotes = useCallback(async () => {
     try {
       setError("");
-      const { data } = await api.get("/notes", {
-        params: { search: debouncedSearch || undefined },
+      const response = await request({
+        method: "get",
+        url: "/notes",
+        params: {
+          search: debouncedSearch || undefined,
+          page,
+          limit,
+        },
       });
+
+      const data = response.data;
       setNotes(data.notes || []);
+      setTotalPages(data.totalPages ?? 1);
       setSelectedId((current) => {
-        if (current && data.notes?.some((n: CodingNote) => n._id === current)) {
+        if (current && data.notes?.some((n) => n._id === current)) {
           return current;
         }
         return data.notes?.[0]?._id || null;
@@ -61,18 +67,31 @@ export default function NotesWorkspacePage() {
     } catch (err: unknown) {
       setError(extractErrorMessage(err, "Failed to load notes"));
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, limit, page, request]);
 
   useEffect(() => {
-    loadNotes();
+    const timer = setTimeout(() => {
+      loadNotes();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [loadNotes]);
+
+  useEffect(() => {
+    resetPage();
+  }, [debouncedSearch, resetPage]);
 
   const createNote = async () => {
     try {
       setError("");
-      const { data } = await api.post("/notes", defaultNote);
-      setNotes((prev) => [data.note, ...prev]);
-      setSelectedId(data.note._id);
+      const response = await request<{ note: CodingNote }>({
+        method: "post",
+        url: "/notes",
+        data: defaultNote,
+      });
+
+      setNotes((prev) => [response.data.note, ...prev]);
+      setSelectedId(response.data.note._id);
+      setPage(1);
     } catch (err: unknown) {
       setError(extractErrorMessage(err, "Failed to create note"));
     }
@@ -80,43 +99,50 @@ export default function NotesWorkspacePage() {
 
   const updateLocal = (patch: Partial<CodingNote>) => {
     if (!selected) return;
-    isDirty.current = true;
     setNotes((prev) => prev.map((n) => (n._id === selected._id ? { ...n, ...patch } : n)));
   };
 
   useEffect(() => {
-    if (!selected || !isDirty.current) return;
+    if (!selected) return;
     const snapshot = selected;
-    const timer = setTimeout(async () => {
+    const timer = window.setTimeout(async () => {
       try {
         setSaving(true);
-        await api.put(`/notes/${snapshot._id}`, {
-          title: snapshot.title,
-          topic: snapshot.topic,
-          difficulty: snapshot.difficulty,
-          tags: snapshot.tags,
-          personalExplanation: snapshot.personalExplanation,
-          codeSolution: snapshot.codeSolution,
-          revisionNotes: snapshot.revisionNotes,
+        await request({
+          method: "put",
+          url: `/notes/${snapshot._id}`,
+          data: {
+            title: snapshot.title,
+            topic: snapshot.topic,
+            difficulty: snapshot.difficulty,
+            tags: snapshot.tags,
+            personalExplanation: snapshot.personalExplanation,
+            codeSolution: snapshot.codeSolution,
+            revisionNotes: snapshot.revisionNotes,
+          },
         });
-        isDirty.current = false;
       } catch (err: unknown) {
         setError(extractErrorMessage(err, "Failed to save note"));
       } finally {
         setSaving(false);
       }
     }, 800);
-    return () => clearTimeout(timer);
-  }, [selected]);
+
+    return () => window.clearTimeout(timer);
+  }, [request, selected]);
 
   const deleteCurrent = async () => {
     if (!selected) return;
     try {
       setError("");
-      await api.delete(`/notes/${selected._id}`);
-      const next = notes.filter((n) => n._id !== selected._id);
-      setNotes(next);
-      setSelectedId(next[0]?._id || null);
+      await request({ method: "delete", url: `/notes/${selected._id}` });
+      const remaining = notes.filter((n) => n._id !== selected._id);
+      setNotes(remaining);
+      if (remaining.length === 0 && page > 1) {
+        setPage(page - 1);
+      } else {
+        setSelectedId(remaining[0]?._id || null);
+      }
     } catch (err: unknown) {
       setError(extractErrorMessage(err, "Failed to delete note"));
     }
@@ -126,8 +152,8 @@ export default function NotesWorkspacePage() {
     if (!selected) return;
     try {
       setError("");
-      const { data } = await api.patch(`/notes/${selected._id}/pin`);
-      setNotes((prev) => prev.map((n) => (n._id === selected._id ? data.note : n)));
+      const response = await request<{ note: CodingNote }>({ method: "patch", url: `/notes/${selected._id}/pin` });
+      setNotes((prev) => prev.map((n) => (n._id === selected._id ? response.data.note : n)));
     } catch (err: unknown) {
       setError(extractErrorMessage(err, "Failed to update pin"));
     }
@@ -145,9 +171,13 @@ export default function NotesWorkspacePage() {
           notes={notes}
           selectedId={selectedId}
           search={search}
+          page={page}
+          totalPages={totalPages}
+          isLoading={loadingNotes}
           onSearch={setSearch}
           onSelect={setSelectedId}
           onCreate={createNote}
+          onPageChange={setPage}
         />
         <div className="flex-1 grid grid-cols-1 xl:grid-cols-2">
           <div className="border-r border-border overflow-y-auto">

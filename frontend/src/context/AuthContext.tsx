@@ -64,7 +64,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    checkAuth();
+    const timer = setTimeout(() => {
+      checkAuth();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [checkAuth]);
 
   const login = async (credentials: { email: string; password: string }) => {

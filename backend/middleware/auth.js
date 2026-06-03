@@ -21,7 +21,7 @@ const protect = async (req, res, next) => {
       token = req.cookies.token;
     }
 
-    if (!token) {
+    if (!token || token === "none") {
       return res.status(401).json({
         success: false,
         message: "Not authorized — no token provided",

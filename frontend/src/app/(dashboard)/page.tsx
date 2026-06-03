@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/axios";
 import { useAuth } from "@/context/AuthContext";
-import StatCard from "@/components/StatCard";
+import StatCard from "@/components/common/StatCard";
 import {
   Code2,
   Trophy,

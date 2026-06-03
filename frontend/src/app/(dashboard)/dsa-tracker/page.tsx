@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Code2 } from "lucide-react";
-import api from "@/lib/axios";
+import { useApi } from "@/hooks/useApi";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { usePagination } from "@/hooks/usePagination";
 import type { Difficulty, QuestionItem, QuestionStats, StatusFilter } from "@/types/dsa";
 import QuestionFilters from "@/components/dsa/QuestionFilters";
 import QuestionTable from "@/components/dsa/QuestionTable";
 import ProgressStats from "@/components/dsa/ProgressStats";
 import QuestionSkeleton from "@/components/dsa/QuestionSkeleton";
+import PaginationControls from "@/components/common/PaginationControls";
 
 const emptyStats: QuestionStats = {
   total: 0,
@@ -18,12 +21,16 @@ const emptyStats: QuestionStats = {
   dailyStreak: 0,
 };
 
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const maybeError = error as { response?: { data?: { message?: string } }; message?: string };
+  return maybeError.response?.data?.message || maybeError.message || fallback;
+};
+
 export default function DSATrackerPage() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [stats, setStats] = useState<QuestionStats>(emptyStats);
   const [topics, setTopics] = useState<string[]>([]);
   const [companies, setCompanies] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [topic, setTopic] = useState("All");
@@ -31,46 +38,62 @@ export default function DSATrackerPage() {
   const [company, setCompany] = useState("All");
   const [status, setStatus] = useState<StatusFilter>("All");
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
+  const { page, limit, setPage, resetPage } = usePagination({ initialPage: 1, initialLimit: 10 });
+  const debouncedSearch = useDebouncedValue(search, 400);
+  const { request, loading } = useApi<{
+    questions: QuestionItem[];
+    filters: { topics: string[]; companies: string[] };
+    page: number;
+    totalPages: number;
+  }>();
 
-  const query = useMemo(
-    () =>
-      ({
-        search: search || undefined,
-        topic,
-        difficulty,
-        company,
-        status,
-        bookmarked: bookmarkedOnly ? "true" : undefined,
-      }) as const,
-    [search, topic, difficulty, company, status, bookmarkedOnly]
+  const queryParams = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      topic,
+      difficulty,
+      company,
+      status,
+      bookmarked: bookmarkedOnly ? "true" : undefined,
+      page,
+      limit,
+    }),
+    [debouncedSearch, topic, difficulty, company, status, bookmarkedOnly, page, limit]
   );
 
   const fetchStats = useCallback(async () => {
-    const { data } = await api.get("/questions/stats");
-    if (data.stats) setStats(data.stats);
-  }, []);
+    try {
+      const response = await request<{ stats: QuestionStats }>({ method: "get", url: "/questions/stats" });
+      if (response.data.stats) setStats(response.data.stats);
+    } catch {
+      setError("Failed to load question stats.");
+    }
+  }, [request]);
 
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
       setError("");
-      const [qRes, sRes] = await Promise.all([
-        api.get("/questions", { params: query }),
-        api.get("/questions/stats"),
-      ]);
-      setQuestions(qRes.data.questions || []);
-      setTopics(qRes.data.filters?.topics || []);
-      setCompanies(qRes.data.filters?.companies || []);
-      setStats(sRes.data.stats ?? emptyStats);
-    } catch {
-      setError("Failed to load questions. Please try again.");
-    } finally {
-      setLoading(false);
+      const response = await request({ method: "get", url: "/questions", params: queryParams });
+      setQuestions(response.data.questions || []);
+      setTopics(response.data.filters?.topics || []);
+      setCompanies(response.data.filters?.companies || []);
+      setTotalPages(response.data.totalPages ?? 1);
+      await fetchStats();
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to load questions. Please try again."));
     }
-  }, [query]);
+  }, [fetchStats, queryParams, request]);
 
   useEffect(() => {
-    fetchData();
+    resetPage();
+  }, [debouncedSearch, topic, difficulty, company, status, bookmarkedOnly, resetPage]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const toggleSolved = async (id: string) => {
@@ -95,7 +118,7 @@ export default function DSATrackerPage() {
     });
 
     try {
-      await api.patch(`/questions/${id}/solve`);
+      await request({ method: "patch", url: `/questions/${id}/solve` });
       await fetchStats();
     } catch {
       setQuestions(previousQuestions);
@@ -120,7 +143,7 @@ export default function DSATrackerPage() {
     }));
 
     try {
-      await api.patch(`/questions/${id}/bookmark`);
+      await request({ method: "patch", url: `/questions/${id}/bookmark` });
     } catch {
       setQuestions(previousQuestions);
       setStats(previousStats);
@@ -174,12 +197,20 @@ export default function DSATrackerPage() {
           <QuestionSkeleton />
         </div>
       ) : (
-        <QuestionTable
-          questions={questions}
-          onToggleSolved={toggleSolved}
-          onToggleBookmark={toggleBookmark}
-          emptyVariant={stats.total === 0 ? "database" : "filters"}
-        />
+        <>
+          <QuestionTable
+            questions={questions}
+            onToggleSolved={toggleSolved}
+            onToggleBookmark={toggleBookmark}
+            emptyVariant={stats.total === 0 ? "database" : "filters"}
+          />
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            isLoading={loading}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </div>
   );

@@ -31,7 +31,11 @@ export default function ResumePage() {
 
   useEffect(() => {
     if (user?.resumeUrl) {
-      setResumeUrl(user.resumeUrl);
+      const url = user.resumeUrl;
+      const timer = setTimeout(() => {
+        setResumeUrl(url);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [user?.resumeUrl]);
 
