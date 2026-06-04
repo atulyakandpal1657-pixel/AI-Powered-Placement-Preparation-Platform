@@ -7,8 +7,8 @@ const swaggerDocument = {
   },
   servers: [
     {
-      url: process.env.SWAGGER_SERVER_URL || `http://localhost:${process.env.PORT || 5000}/api`,
-      description: "Local API endpoint",
+      url: process.env.SWAGGER_SERVER_URL || `https://placeprep-backend-w679.onrender.com/api`,
+      description: "Production API endpoint",
     },
   ],
   components: {
