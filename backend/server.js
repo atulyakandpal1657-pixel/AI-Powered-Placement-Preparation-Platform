@@ -16,6 +16,7 @@ const userRoutes = require("./routes/userRoutes");
 const dsaRoutes = require("./routes/dsaRoutes");
 const questionRoutes = require("./routes/questionRoutes");
 const noteRoutes = require("./routes/noteRoutes");
+const interviewRoutes = require("./routes/interviewRoutes");
 
 // ──── Initialize Express ───────────────────────────────────
 const app = express();
@@ -62,6 +63,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/dsa", dsaRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api/notes", noteRoutes);
+app.use("/api/interview", interviewRoutes);
 
 // 404 handler for unknown API routes
 app.use("/api/{*path}", (req, res) => {

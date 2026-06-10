@@ -23,7 +23,7 @@ import { useToast } from "@/context/ToastContext";
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "DSA Tracker", href: "/dsa-tracker", icon: Code2 },
-  { label: "AI Mock Interview", href: "#", icon: BrainCircuit, comingSoon: true },
+  { label: "AI Mock Interview", href: "/mock-interview", icon: BrainCircuit },
   { label: "Resume", href: "/resume", icon: FileText },
   { label: "Notes Workspace", href: "/notes", icon: NotebookPen },
   { label: "Discussion Forum", href: "#", icon: MessageSquare, comingSoon: true },

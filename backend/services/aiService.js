@@ -80,6 +80,90 @@ const analyzePdfBuffer = async (buffer) => {
   return { analysis, extractedTextLength: resumeText.length };
 };
 
+// ── Interview helpers ────────────────────────────────────────────────────────
+
+const MAX_INTERVIEW_MESSAGES = 40;
+
+/**
+ * Send conversation history to Gemini acting as a technical interviewer.
+ * @param {Array<{role: string, content: string}>} messages - chat history
+ * @param {string} role   - target job role
+ * @param {string} company - target company
+ * @returns {Promise<string>} AI interviewer's next message
+ */
+const conductInterview = async (messages, role, company) => {
+  if (!process.env.GEMINI_API_KEY) {
+    const err = new Error("GEMINI_NOT_CONFIGURED");
+    err.statusCode = 500;
+    throw err;
+  }
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-flash",
+    systemInstruction: [
+      `You are a technical interviewer at ${company} interviewing a candidate for the role of ${role}.`,
+      "Ask one question at a time. Start with a brief introduction and a warm-up question.",
+      "Progress naturally from behavioral to technical questions.",
+      "Be conversational, professional, and encouraging.",
+      "If the candidate's answer is incomplete, ask a follow-up before moving on.",
+      "Do NOT break character or mention that you are an AI.",
+    ].join(" "),
+  });
+
+  // Trim to last N messages to stay within context limits
+  const recent = messages.slice(-MAX_INTERVIEW_MESSAGES);
+
+  const contents = recent.map((m) => ({
+    role: m.role === "model" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+
+  const result = await model.generateContent({ contents });
+  return result.response.text();
+};
+
+/**
+ * Generate an end-of-interview performance summary.
+ * @param {Array<{role: string, content: string}>} messages
+ * @param {string} role
+ * @param {string} company
+ * @returns {Promise<string>} summary text
+ */
+const generateInterviewSummary = async (messages, role, company) => {
+  if (!process.env.GEMINI_API_KEY) {
+    const err = new Error("GEMINI_NOT_CONFIGURED");
+    err.statusCode = 500;
+    throw err;
+  }
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const transcript = messages
+    .map((m) => `${m.role === "model" ? "Interviewer" : "Candidate"}: ${m.content}`)
+    .join("\n\n");
+
+  const prompt = `You are a senior hiring manager at ${company} reviewing a mock interview transcript for the role of ${role}.
+
+Based on the conversation below, provide a concise performance summary with:
+1. **Overall Score**: a number from 0–100
+2. **Strengths**: 3–5 bullet points about what the candidate did well
+3. **Areas for Improvement**: 3–5 bullet points about what could be improved
+4. **Final Verdict**: one sentence summary of readiness
+
+Use markdown formatting. Be constructive and specific.
+
+Transcript:
+${transcript}`;
+
+  const result = await model.generateContent(prompt);
+  return result.response.text();
+};
+
 module.exports = {
   analyzePdfBuffer,
+  conductInterview,
+  generateInterviewSummary,
 };
+

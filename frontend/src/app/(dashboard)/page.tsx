@@ -24,6 +24,37 @@ interface QuestionStats {
   dailyStreak: number;
 }
 
+interface TopicEntry {
+  total: number;
+  solved: number;
+}
+
+interface WeeklyDay {
+  day: string;
+  current: number;
+  previous: number;
+}
+
+const TOPIC_COLORS: Record<string, string> = {
+  Arrays: "#6c5ce7",
+  Trees: "#00d2a0",
+  DP: "#f5a623",
+  Graphs: "#74b9ff",
+  Strings: "#a29bfe",
+  "Linked List": "#ff4757",
+  Sorting: "#e17055",
+  Searching: "#00cec9",
+  "Stack & Queue": "#fd79a8",
+  Recursion: "#636e72",
+  Hashing: "#d63031",
+  Greedy: "#0984e3",
+};
+
+const FALLBACK_COLORS = [
+  "#6c5ce7", "#00d2a0", "#f5a623", "#74b9ff", "#a29bfe",
+  "#ff4757", "#e17055", "#00cec9", "#fd79a8", "#636e72",
+];
+
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return "Good Morning";
@@ -34,22 +65,58 @@ function getGreeting(): string {
 export default function DashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState<QuestionStats | null>(null);
+  const [byTopic, setByTopic] = useState<Record<string, TopicEntry>>({});
+  const [weeklyActivity, setWeeklyActivity] = useState<WeeklyDay[]>([]);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchAll = async () => {
       try {
-        const { data } = await api.get("/questions/stats");
-        if (data.success) {
-          setStats(data.stats);
+        const [questionRes, dsaRes, weeklyRes] = await Promise.all([
+          api.get("/questions/stats"),
+          api.get("/dsa/stats"),
+          api.get("/dsa/weekly-activity"),
+        ]);
+
+        if (questionRes.data.success) {
+          setStats(questionRes.data.stats);
+        }
+        if (dsaRes.data.success && dsaRes.data.stats?.byTopic) {
+          setByTopic(dsaRes.data.stats.byTopic);
+        }
+        if (weeklyRes.data.success && weeklyRes.data.weeklyActivity) {
+          setWeeklyActivity(weeklyRes.data.weeklyActivity);
         }
       } catch (error) {
-        console.error("Failed to fetch stats:", error);
+        console.error("Failed to fetch dashboard data:", error);
       }
     };
-    fetchStats();
+    fetchAll();
   }, []);
 
   const firstName = user?.name?.split(" ")[0] || "there";
+
+  // Compute topic progress from byTopic data
+  const topicProgressData = Object.entries(byTopic).map(
+    ([topic, { total, solved }], idx) => ({
+      topic,
+      progress: total > 0 ? Math.round((solved / total) * 100) : 0,
+      color: TOPIC_COLORS[topic] || FALLBACK_COLORS[idx % FALLBACK_COLORS.length],
+    })
+  );
+
+  // Use fetched weekly activity or show empty state
+  const weeklyData =
+    weeklyActivity.length > 0
+      ? weeklyActivity
+      : [
+          { day: "Mon", current: 0, previous: 0 },
+          { day: "Tue", current: 0, previous: 0 },
+          { day: "Wed", current: 0, previous: 0 },
+          { day: "Thu", current: 0, previous: 0 },
+          { day: "Fri", current: 0, previous: 0 },
+          { day: "Sat", current: 0, previous: 0 },
+          { day: "Sun", current: 0, previous: 0 },
+        ];
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
@@ -101,7 +168,7 @@ export default function DashboardPage() {
 
       {/* Two Column Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Activity Chart Placeholder */}
+        {/* Activity Chart */}
         <div className="lg:col-span-2 glass-card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -119,24 +186,16 @@ export default function DashboardPage() {
           </div>
           {/* Bar Chart */}
           <div className="flex items-end justify-between gap-3 h-48 pt-4">
-            {[
-              { day: "Mon", current: 65, previous: 45 },
-              { day: "Tue", current: 80, previous: 60 },
-              { day: "Wed", current: 45, previous: 70 },
-              { day: "Thu", current: 90, previous: 50 },
-              { day: "Fri", current: 70, previous: 80 },
-              { day: "Sat", current: 95, previous: 65 },
-              { day: "Sun", current: 55, previous: 40 },
-            ].map((d) => (
+            {weeklyData.map((d) => (
               <div key={d.day} className="flex-1 flex flex-col items-center gap-2">
                 <div className="w-full flex items-end gap-1 h-40">
                   <div
                     className="flex-1 rounded-t-md bg-muted/20 transition-all duration-500 hover:bg-muted/30"
-                    style={{ height: `${d.previous}%` }}
+                    style={{ height: `${d.previous || 2}%` }}
                   />
                   <div
                     className="flex-1 rounded-t-md bg-gradient-to-t from-[#6c5ce7] to-[#a29bfe] transition-all duration-500 hover:opacity-80"
-                    style={{ height: `${d.current}%` }}
+                    style={{ height: `${d.current || 2}%` }}
                   />
                 </div>
                 <span className="text-xs text-muted">{d.day}</span>
@@ -149,32 +208,31 @@ export default function DashboardPage() {
         <div className="glass-card p-6 space-y-4">
           <h2 className="text-lg font-semibold">Topic Progress</h2>
           <div className="space-y-3">
-            {[
-              { topic: "Arrays", progress: 85, color: "#6c5ce7" },
-              { topic: "Trees", progress: 60, color: "#00d2a0" },
-              { topic: "DP", progress: 35, color: "#f5a623" },
-              { topic: "Graphs", progress: 45, color: "#74b9ff" },
-              { topic: "Strings", progress: 70, color: "#a29bfe" },
-              { topic: "Linked List", progress: 55, color: "#ff4757" },
-            ].map((t) => (
-              <div key={t.topic} className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted">{t.topic}</span>
-                  <span className="font-medium" style={{ color: t.color }}>
-                    {t.progress}%
-                  </span>
+            {topicProgressData.length > 0 ? (
+              topicProgressData.map((t) => (
+                <div key={t.topic} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted">{t.topic}</span>
+                    <span className="font-medium" style={{ color: t.color }}>
+                      {t.progress}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-surface overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700 ease-out"
+                      style={{
+                        width: `${t.progress}%`,
+                        background: `linear-gradient(90deg, ${t.color}, ${t.color}aa)`,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-2 rounded-full bg-surface overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700 ease-out"
-                    style={{
-                      width: `${t.progress}%`,
-                      background: `linear-gradient(90deg, ${t.color}, ${t.color}aa)`,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-muted">
+                No topic data yet. Add DSA problems to see progress.
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -298,3 +356,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

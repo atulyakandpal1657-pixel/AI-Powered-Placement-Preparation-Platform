@@ -142,6 +142,56 @@ const deleteProblem = async (req, res, next) => {
   }
 };
 
+const getWeeklyActivity = async (req, res, next) => {
+  try {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sunday
+    // Monday-based week: calculate start of current week (Monday 00:00)
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const currentWeekStart = new Date(now);
+    currentWeekStart.setDate(now.getDate() + mondayOffset);
+    currentWeekStart.setHours(0, 0, 0, 0);
+
+    const previousWeekStart = new Date(currentWeekStart);
+    previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+
+    const problems = await DSAProblem.find({
+      user: req.user._id,
+      solved: true,
+      createdAt: { $gte: previousWeekStart },
+    }).select("createdAt").lean();
+
+    const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const current = new Array(7).fill(0);
+    const previous = new Array(7).fill(0);
+
+    for (const p of problems) {
+      const d = new Date(p.createdAt);
+      // Convert JS day (0=Sun) to Mon-based index (0=Mon)
+      const jsDay = d.getDay();
+      const idx = jsDay === 0 ? 6 : jsDay - 1;
+
+      if (d >= currentWeekStart) {
+        current[idx]++;
+      } else if (d >= previousWeekStart) {
+        previous[idx]++;
+      }
+    }
+
+    // Normalize to percentages (max value = 100%)
+    const maxVal = Math.max(...current, ...previous, 1);
+    const weeklyActivity = dayNames.map((day, i) => ({
+      day,
+      current: Math.round((current[i] / maxVal) * 100),
+      previous: Math.round((previous[i] / maxVal) * 100),
+    }));
+
+    res.status(200).json({ success: true, weeklyActivity });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getStats = async (req, res, next) => {
   try {
     const [summaryResult, topicStats] = await Promise.all([
@@ -258,4 +308,5 @@ module.exports = {
   updateProblem,
   deleteProblem,
   getStats,
+  getWeeklyActivity,
 };

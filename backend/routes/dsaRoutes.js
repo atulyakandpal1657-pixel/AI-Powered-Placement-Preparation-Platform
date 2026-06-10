@@ -8,6 +8,7 @@ const {
   updateProblem,
   deleteProblem,
   getStats,
+  getWeeklyActivity,
 } = require("../controllers/dsaController");
 
 const router = express.Router();
@@ -45,6 +46,7 @@ const deleteProblemValidators = [
 ];
 
 router.get("/stats", getStats);
+router.get("/weekly-activity", getWeeklyActivity);
 router.get("/", listProblemsValidators, validateRequest, listProblems);
 router.post("/", createProblemValidators, validateRequest, createProblem);
 router.put("/:id", updateProblemValidators, validateRequest, updateProblem);
