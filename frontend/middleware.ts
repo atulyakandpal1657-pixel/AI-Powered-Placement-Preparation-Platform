@@ -3,7 +3,11 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
-  const isAuthenticated = token && token !== "none";
+  // Also check Authorization header as fallback
+  const authHeader = request.headers.get("authorization");
+  const headerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  const isAuthenticated = (token && token !== "none") || headerToken;
   
   const path = request.nextUrl.pathname;
   const isProtectedRoute =

@@ -5,8 +5,8 @@ const validateRequest = require("../middleware/validateRequest");
 const {
   listQuestions,
   toggleSolved,
-  toggleBookmark,
   getQuestionStats,
+  getCompanies,
 } = require("../controllers/questionController");
 
 const router = express.Router();
@@ -27,6 +27,7 @@ const listQuestionsValidators = [
 const idValidators = [param("id").isMongoId().withMessage("Invalid question id")];
 
 router.get("/stats", getQuestionStats);
+router.get("/companies", getCompanies);
 router.get("/", listQuestionsValidators, validateRequest, listQuestions);
 router.patch("/:id/solve", idValidators, validateRequest, toggleSolved);
 router.patch("/:id/bookmark", idValidators, validateRequest, toggleBookmark);

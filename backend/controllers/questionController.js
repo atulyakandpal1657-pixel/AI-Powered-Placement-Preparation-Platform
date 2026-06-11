@@ -185,4 +185,75 @@ const getQuestionStats = async (req, res, next) => {
   }
 };
 
-module.exports = { listQuestions, toggleSolved, toggleBookmark, getQuestionStats };
+const getCompanies = async (req, res, next) => {
+  try {
+    await seedQuestionsIfEmpty();
+
+    const aggregatePipeline = [
+      { $unwind: "$companies" },
+      {
+        $lookup: {
+          from: "userquestionstates",
+          let: { questionId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$question", "$$questionId"] },
+                    { $eq: ["$user", req.user._id] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "state",
+        },
+      },
+      { $unwind: { path: "$state", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          solved: { $ifNull: ["$state.solved", false] },
+        },
+      },
+      {
+        $group: {
+          _id: "$companies",
+          totalQuestions: { $sum: 1 },
+          solvedQuestions: { $sum: { $cond: ["$solved", 1, 0] } },
+          easyTotal: { $sum: { $cond: [{ $eq: ["$difficulty", "Easy"] }, 1, 0] } },
+          mediumTotal: { $sum: { $cond: [{ $eq: ["$difficulty", "Medium"] }, 1, 0] } },
+          hardTotal: { $sum: { $cond: [{ $eq: ["$difficulty", "Hard"] }, 1, 0] } },
+          easySolved: { $sum: { $cond: [{ $and: [{ $eq: ["$difficulty", "Easy"] }, "$solved"] }, 1, 0] } },
+          mediumSolved: { $sum: { $cond: [{ $and: [{ $eq: ["$difficulty", "Medium"] }, "$solved"] }, 1, 0] } },
+          hardSolved: { $sum: { $cond: [{ $and: [{ $eq: ["$difficulty", "Hard"] }, "$solved"] }, 1, 0] } },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          company: "$_id",
+          totalQuestions: 1,
+          solvedQuestions: 1,
+          difficultyBreakdown: {
+            Easy: { total: "$easyTotal", solved: "$easySolved" },
+            Medium: { total: "$mediumTotal", solved: "$mediumSolved" },
+            Hard: { total: "$hardTotal", solved: "$hardSolved" },
+          },
+        },
+      },
+      { $sort: { company: 1 } },
+    ];
+
+    const companiesStats = await Question.aggregate(aggregatePipeline);
+
+    res.status(200).json({
+      success: true,
+      data: companiesStats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { listQuestions, toggleSolved, toggleBookmark, getQuestionStats, getCompanies };

@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Sparkles,
   X,
+  Building2,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
@@ -23,11 +24,12 @@ import { useToast } from "@/context/ToastContext";
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "DSA Tracker", href: "/dsa-tracker", icon: Code2 },
+  { label: "Companies", href: "/companies", icon: Building2 },
   { label: "AI Mock Interview", href: "/mock-interview", icon: BrainCircuit },
   { label: "Resume", href: "/resume", icon: FileText },
   { label: "Notes Workspace", href: "/notes", icon: NotebookPen },
   { label: "Discussion Forum", href: "#", icon: MessageSquare, comingSoon: true },
-  { label: "Settings", href: "#", icon: Settings, comingSoon: true },
+  { label: "Settings", href: "/settings", icon: Settings },
 ] as const;
 
 export default function Sidebar() {

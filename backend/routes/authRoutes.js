@@ -12,6 +12,8 @@ const {
   analyzeResume,
   analyzeStoredResume,
   getDemoAccounts,
+  updatePassword,
+  deleteMe,
 } = require("../controllers/authController");
 const { protect } = require("../middleware/auth");
 const upload = require("../middleware/upload");
@@ -118,6 +120,28 @@ router.put(
   ],
   updateMe
 );
+
+router.patch(
+  "/password",
+  protect,
+  [
+    body("oldPassword").notEmpty().withMessage("Old password is required"),
+    body("newPassword")
+      .notEmpty()
+      .withMessage("New password is required")
+      .isLength({ min: 12 })
+      .withMessage("New password must be at least 12 characters")
+      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/)
+      .withMessage(
+        "New password must include uppercase, lowercase, number, and special character"
+      ),
+  ],
+  validateRequest,
+  updatePassword
+);
+
+router.delete("/me", protect, deleteMe);
+
 router.post("/resume", protect, upload.single("resume"), uploadResume);
 router.post("/resume/analyze", protect, upload.single("resume"), analyzeResume);
 router.post("/resume/analyze-stored", protect, analyzeStoredResume);

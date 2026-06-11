@@ -353,6 +353,72 @@ const getDemoAccounts = async (req, res) => {
   return res.status(200).json({ success: true, accounts });
 };
 
+/**
+ * @desc    Update user password
+ * @route   PATCH /api/auth/password
+ * @access  Private
+ */
+const updatePassword = async (req, res, next) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide both old and new password",
+      });
+    }
+
+    const user = await User.findById(req.user.id).select("+password");
+
+    if (!(await user.comparePassword(oldPassword))) {
+      return res.status(401).json({
+        success: false,
+        message: "Incorrect old password",
+      });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    // Remove old token and send new one so user stays logged in
+    sendTokenResponse(user, 200, res, req);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Delete current logged in user
+ * @route   DELETE /api/auth/me
+ * @access  Private
+ */
+const deleteMe = async (req, res, next) => {
+  try {
+    // Optionally we could delete related UserQuestionStates and other data
+    const user = await User.findByIdAndDelete(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.cookie("token", "none", {
+      httpOnly: true,
+      expires: new Date(0),
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Account deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   signup,
   login,
@@ -363,4 +429,6 @@ module.exports = {
   analyzeResume,
   analyzeStoredResume,
   getDemoAccounts,
+  updatePassword,
+  deleteMe,
 };

@@ -75,7 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data } = await api.post("/auth/login", credentials);
       if (data.success) {
         setUser(data.user);
-        // The HTTPOnly cookie is automatically set by the browser
+        // Set cookie from frontend so middleware.ts can read it
+        document.cookie = `token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+        router.refresh(); // forces middleware to re-evaluate with new cookie
         router.push("/");
       }
     } catch (error: unknown) {
@@ -88,7 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data } = await api.post("/auth/signup", userData);
       if (data.success) {
         setUser(data.user);
-        // The HTTPOnly cookie is automatically set by the browser
+        document.cookie = `token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+        router.refresh();
         router.push("/");
       }
     } catch (error: unknown) {
@@ -103,6 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Logout error", error);
     } finally {
       setUser(null);
+      // Clear the frontend cookie too
+      document.cookie = "token=; path=/; max-age=0";
       router.push("/login");
     }
   };
