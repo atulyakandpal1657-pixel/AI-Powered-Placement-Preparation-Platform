@@ -22,7 +22,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import { useToast } from "@/context/ToastContext";
 
 const navItems = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "DSA Tracker", href: "/dsa-tracker", icon: Code2 },
   { label: "Companies", href: "/companies", icon: Building2 },
   { label: "AI Mock Interview", href: "/mock-interview", icon: BrainCircuit },

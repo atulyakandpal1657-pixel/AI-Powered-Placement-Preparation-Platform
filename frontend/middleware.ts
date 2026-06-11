@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
   
   const path = request.nextUrl.pathname;
   const isProtectedRoute =
-    path === "/" ||
+    path.startsWith("/dashboard") ||
     path.startsWith("/dsa-tracker") ||
     path.startsWith("/resume") ||
     path.startsWith("/notes");
@@ -21,6 +21,13 @@ export function middleware(request: NextRequest) {
     if (!isAuthenticated) {
       // Redirect to login if there is no valid token
       return NextResponse.redirect(new URL("/login", request.url));
+    }
+  }
+
+  // Redirect to dashboard if logged in user visits landing page
+  if (path === "/") {
+    if (isAuthenticated) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   }
 
@@ -39,5 +46,5 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   // Run middleware on specific routes
-  matcher: ["/", "/dsa-tracker/:path*", "/resume/:path*", "/notes/:path*", "/login", "/signup"],
+  matcher: ["/", "/dashboard/:path*", "/dsa-tracker/:path*", "/resume/:path*", "/notes/:path*", "/login", "/signup"],
 };

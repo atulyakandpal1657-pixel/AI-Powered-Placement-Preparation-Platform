@@ -184,9 +184,9 @@ export default function MockInterviewPage() {
     // Basic bold/list parsing for the summary since we don't have a full markdown library loaded here
     // In a real app we might use react-markdown, but we'll do simple replacements for bold and newlines
     let html = text
-      .replace(/\\*\\*(.*?)\\*\\*/g, "<strong>$1</strong>") // Bold
-      .replace(/\\*(.*?)\\*/g, "<em>$1</em>") // Italics
-      .replace(/\\n/g, "<br/>"); // Newlines
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Bold
+      .replace(/\*(.*?)\*/g, "<em>$1</em>") // Italics
+      .replace(/\n/g, "<br/>"); // Newlines
 
     return <div dangerouslySetInnerHTML={{ __html: html }} className="text-sm leading-relaxed" />;
   };

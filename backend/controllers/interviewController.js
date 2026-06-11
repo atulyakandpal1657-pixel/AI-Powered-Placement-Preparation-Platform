@@ -127,20 +127,23 @@ const listSessions = async (req, res, next) => {
     const query = { user: req.user._id };
 
     const total = await InterviewSession.countDocuments(query);
-    const sessions = await InterviewSession.find(query)
-      .select("role company status summary createdAt updatedAt")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    // Add message count for each session
-    const sessionsWithCount = await Promise.all(
-      sessions.map(async (s) => {
-        const doc = await InterviewSession.findById(s._id).select("messages").lean();
-        return { ...s, messageCount: doc?.messages?.length || 0 };
-      })
-    );
+    const sessionsWithCount = await InterviewSession.aggregate([
+      { $match: query },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $project: {
+          role: 1,
+          company: 1,
+          status: 1,
+          summary: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          messageCount: { $size: { $ifNull: ["$messages", []] } }
+        }
+      }
+    ]);
 
     res.status(200).json({
       success: true,

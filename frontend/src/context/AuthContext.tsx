@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Set cookie from frontend so middleware.ts can read it
         document.cookie = `token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
         router.refresh(); // forces middleware to re-evaluate with new cookie
-        router.push("/");
+        router.push("/dashboard");
       }
     } catch (error: unknown) {
       throw new Error(extractApiErrorMessage(error, "Login failed"));
@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.user);
         document.cookie = `token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
         router.refresh();
-        router.push("/");
+        router.push("/dashboard");
       }
     } catch (error: unknown) {
       throw new Error(extractApiErrorMessage(error, "Signup failed"));
