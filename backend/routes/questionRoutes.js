@@ -5,6 +5,7 @@ const validateRequest = require("../middleware/validateRequest");
 const {
   listQuestions,
   toggleSolved,
+  toggleBookmark,
   getQuestionStats,
   getCompanies,
 } = require("../controllers/questionController");
